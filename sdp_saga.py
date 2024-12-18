@@ -1,10 +1,13 @@
+"""Approche constructive pour l'analyse de pire cas de SAGA"""
 import numpy as np
 import sympy as sm
 import cvxpy as cp
 import matplotlib.pyplot as plt
 
+# On fixe n le nombre de fonctions
 n = 3
 
+########### Utilisation de Sympy pour déterminer les variables du SDP #########
 L = sm.Symbol('L')
 mu = sm.Symbol('mu')
 gamma = sm.Symbol('gamma')
@@ -23,23 +26,28 @@ gphi = [sm.Symbol(f'gphi_{i}') for i in range(n)] # Gradients de f_i en phi_i
 gs = [sm.Symbol(f'gs_{i}') for i in range(n-1)] # Gradients en x_star
 gs.append(-sum(gs[i] for i in range(n-1))) # Dernier gradient est l'opposé de la somme des autres
 
-lyapunov = sum(f)/(n**2) + (1-1/n)*sum(fphi)/n - sum(fs)/n - (1-1/n)*sum([gs[i]*(phi[i]-xs) for i in range(n)])/n + c*sum([(x0-gamma*(g[j]-gphi[j]+sum(gphi)/n)-xs)**2 for j in range(n)])/n # Retrait du terme en f'(x_\star) car gradient nul en xs
+# Fonction objectif = fonction de lyapunov en k=1
+lyapunov = sum(f)/(n**2) + (1-1/n)*sum(fphi)/n - sum(fs)/n - (1-1/n)*sum([gs[i]*(phi[i]-xs) for i in range(n)])/n + c*sum([(x0-gamma*(g[j]-gphi[j]+sum(gphi)/n)-xs)**2 for j in range(n)])/n 
 
-# Convexité entre x_0 et x_star
+# Interpolation entre x_0 et x_star
 constraints1 = [f[i]- fs[i] + g[i]*(xs-x0) + (g[i]-gs[i])**2/(2*L) + mu/(2*(1-mu/L))*(x0-xs+gs[i]/L-g[i]/L)**2 for i in range(n)]
 constraints2 = [fs[i]- f[i] + gs[i]*(x0-xs) + (g[i]-gs[i])**2/(2*L) + mu/(2*(1-mu/L))*(x0-xs+gs[i]/L-g[i]/L)**2 for i in range(n)]
-# Convexité entre x_0 et phi
+
+# Interpolation entre x_0 et phi
 constraints3 = [f[i]- fphi[i] + g[i]*(phi[i]-x0) + (g[i]-gphi[i])**2/(2*L) + mu/(2*(1-mu/L))*(x0-phi[i]+gphi[i]/L-g[i]/L)**2 for i in range(n)]
 constraints4 = [fphi[i]- f[i] + gphi[i]*(x0-phi[i]) + (g[i]-gphi[i])**2/(2*L) + mu/(2*(1-mu/L))*(x0-phi[i]+gphi[i]/L-g[i]/L)**2 for i in range(n)]
-# Convexité entre phi et x_star
+
+# Interpolation entre phi et x_star
 constraints5 = [fphi[i]- fs[i] + gphi[i]*(xs-phi[i]) + (gphi[i]-gs[i])**2/(2*L) + mu/(2*(1-mu/L))*(phi[i]-xs+gs[i]/L-gphi[i]/L)**2 for i in range(n)]
 constraints6 = [fs[i]- fphi[i] + gs[i]*(phi[i]-xs) + (gphi[i]-gs[i])**2/(2*L) + mu/(2*(1-mu/L))*(phi[i]-xs+gs[i]/L-gphi[i]/L)**2 for i in range(n)]
 
-# initial_constraint = (x0-xs)**2 - R2
-# Je pense qu'il faut remplacer la contrainte initiale par une contrainte sur la focntion de Lyapunov initialement V^0
+# Contrainte sur la valeur initiale du la focntion de Lyapunov
 lyapunov0 = sum(fphi)/n - sum(fs)/n - sum([gs[i]*(phi[i]-xs) for i in range(n)])/n + c*(x0-xs)**2
 
-variables = [x0] + phi + g + gphi + gs[:-1]
+
+variables = [x0] + phi + g + gphi + gs[:-1] # Variables de la matrice de Gram 
+
+
 A_num = sm.lambdify([c, gamma], sm.simplify(sm.hessian(lyapunov, variables)/2))
 A_1 = [sm.lambdify([mu, L], sm.simplify(sm.hessian(constraints1[i], variables)/2)) for i in range(n)]
 A_2 = [sm.lambdify([mu, L], sm.simplify(sm.hessian(constraints2[i], variables)/2)) for i in range(n)]
@@ -49,9 +57,10 @@ A_5 = [sm.lambdify([mu, L], sm.simplify(sm.hessian(constraints5[i], variables)/2
 A_6 = [sm.lambdify([mu, L], sm.simplify(sm.hessian(constraints6[i], variables)/2)) for i in range(n)]
 A_0 = sm.lambdify(c, sm.simplify(sm.hessian(lyapunov0, variables)/2))
 
+
+
 ################## PROBLEME PRIMAL ################
 L = 1
-
 mu_values = np.linspace(.1, .7)
 # c_values = np.linspace(0, 3)
 problem_primal_values = []
